@@ -1,0 +1,91 @@
+x-airflow-common: &airflow-common
+  image: ${AIRFLOW_IMAGE}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      AIRFLOW_BASE_IMAGE: ${AIRFLOW_BASE_IMAGE}
+  environment:
+    AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW__CORE__LOAD_EXAMPLES}
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: ${AIRFLOW__WEBSERVER__EXPOSE_CONFIG}
+    AIRFLOW__API__AUTH_BACKENDS: ${AIRFLOW__API__AUTH_BACKENDS}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+    AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+    # Conexión SSH → Spark (definida en .env)
+    AIRFLOW_CONN_SSH_SPARK: ${AIRFLOW_CONN_SSH_SPARK}
+    AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
+    AIRFLOW__CORE__STORE_DAG_CODE: "True"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    # Clave privada montada solo lectura 
+    - ./keys/spark-etlt-ec2.pem:/opt/airflow/keys/spark-etlt-ec2.pem:ro
+  # Usuario de runtime (alineado con AIRFLOW_UID del .env, p. ej. 1000)
+  user: "${AIRFLOW_UID:-50000}:0"
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Init: corre como root para chown; ejecuta Airflow como 'airflow' preservando env (Postgres)
+  airflow-init:
+    <<: *airflow-common
+    user: "0:0"
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command: -lc "mkdir -p /opt/airflow/{dags,logs,plugins} \
+      && chown -R ${AIRFLOW_UID:-50000}:0 /opt/airflow/dags /opt/airflow/logs /opt/airflow/plugins \
+      && su -p -s /bin/bash -c '/home/airflow/.local/bin/airflow db migrate \
+      && /home/airflow/.local/bin/airflow users create \
+         --username ${AIRFLOW_ADMIN_USERNAME} \
+         --password ${AIRFLOW_ADMIN_PASSWORD} \
+         --firstname ${AIRFLOW_ADMIN_FIRSTNAME} \
+         --lastname ${AIRFLOW_ADMIN_LASTNAME} \
+         --role Admin \
+         --email ${AIRFLOW_ADMIN_EMAIL} || true' airflow"
+
+  webserver:
+    <<: *airflow-common
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+    restart: unless-stopped
+
+  scheduler:
+    <<: *airflow-common
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    command: scheduler
+    restart: unless-stopped
+
+volumes:
+  pgdata:

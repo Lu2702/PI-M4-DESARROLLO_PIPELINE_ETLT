@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  spark:
+    build: .
+    container_name: spark
+    user: "0:0"
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - HADOOP_USER_NAME=spark
+    command: ["/opt/bitnami/scripts/spark/run.sh"]
+    ports:
+      - "8080:8080"
+      - "4040:4040"
+    volumes:
+      - ./conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf:ro
+      - ./app:/opt/etlt/app
+      - ./logs:/opt/bitnami/spark/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

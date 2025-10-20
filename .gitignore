@@ -1,0 +1,3 @@
+# Ignorar variables de entorno en cualquier carpeta
+**/.env
+**/.env.*
