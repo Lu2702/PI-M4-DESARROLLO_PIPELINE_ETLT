@@ -13,7 +13,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__API__AUTH_BACKENDS: ${AIRFLOW__API__AUTH_BACKENDS}
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
     AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
-    # Conexión SSH → Spark (definida en .env)
+    # Conexión SSH - Spark (definida en .env)
     AIRFLOW_CONN_SSH_SPARK: ${AIRFLOW_CONN_SSH_SPARK}
     AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
     AIRFLOW__CORE__STORE_DAG_CODE: "True"

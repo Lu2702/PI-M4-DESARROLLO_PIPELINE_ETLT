@@ -3,7 +3,7 @@
 # weather_silver_job.py
 # -----------------------------------------------------------------------------
 # Propósito:
-#   - Estandarizar y enriquecer datos de OpenWeather desde BRONZE → SILVER
+#   - Estandarizar y enriquecer datos de OpenWeather desde BRONZE - SILVER
 #   - Combina dos fuentes:
 #       * Airbyte (Parquet particionado por year/month/day)
 #       * Manual (JSON históricos por ingest_date)
@@ -23,11 +23,8 @@
 #     --bronze s3a://etlt-datalake-dev-us-east-1-bronze \
 #     --silver s3a://etlt-datalake-dev-us-east-1-silver
 #
-# Notas de ejecución en tu EC2:
-#   - Si dejaste "solo master" en Docker, ejecuta en local:  --master local[*]
-#   - El acceso a S3 usa el rol IAM de la instancia (InstanceProfile).
 # =============================================================================
-# BRONZE (Airbyte/Manual)  ->  SILVER (Parquet Snappy particionado)
+# BRONZE (Airbyte/Manual)  -  SILVER (Parquet Snappy particionado)
 # Particiones: city / event_year / event_month / event_day
 # - Corre en Docker (Bitnami Spark) sobre EC2 con credenciales vía InstanceProfile.
 # - Cálculo de hora local estable con dt + timezone (segundos).
@@ -61,7 +58,7 @@ KEEP = [
 
 PARTITION_COLS = ["city","event_year","event_month","event_day"]
 
-# ------------------------------ Spark Session (SIN CAMBIOS) ------------------
+# ------------------------------ Spark Session ------------------
 def build_spark(app_name="weather-silver-job", shuffle_parts=8):
     """
     Construye Spark para correr local en el contenedor.
@@ -79,7 +76,7 @@ def build_spark(app_name="weather-silver-job", shuffle_parts=8):
     )
     spark.sparkContext.setLogLevel("WARN")
 
-    # Logging breve (útil para debug)
+    # Logging 
     hconf = spark.sparkContext._jsc.hadoopConfiguration()
     print("[Spark] master                         =", spark.sparkContext.master)
     print("[Spark] fs.s3a.impl                    =", hconf.get("fs.s3a.impl"))
@@ -97,7 +94,6 @@ def read_manual_city(sp, bronze_root, city, ingest_date):
     path = f"{bronze_root}/manual/{CITY_PREFIX[city]}/ingest_date={ingest_date}/*.json"
     df = sp.read.option("multiLine", True).json(path)
 
-    # si el JSON es array raíz → explotar
     if len(df.schema.fields) == 1 and isinstance(df.schema.fields[0].dataType, T.ArrayType):
         root = df.schema.fields[0].name
         df = df.select(F.explode(F.col(root)).alias("obj")).select("obj.*")
@@ -124,7 +120,7 @@ def bin_col(col, edges):
          .otherwise(F.lit(f"{edges[3]}+"))
     )
 
-# ------------------------------ Normalización (fechas robustas) --------------
+# ------------------------------ Normalización --------------
 def normalize_to_silver(df, job_city):
     cols = set(df.columns)
 
@@ -132,7 +128,7 @@ def normalize_to_silver(df, job_city):
     lat_expr = F.col("coord.lat").cast("double") if "coord" in cols else F.col("lat").cast("double")
     lon_expr = F.col("coord.lon").cast("double") if "coord" in cols else F.col("lon").cast("double")
 
-    # weather array (1-based en Spark SQL)
+    # weather array 
     if "weather" in cols:
         w_main = F.element_at(F.col("weather"), 1).getField("main")
         w_desc = F.element_at(F.col("weather"), 1).getField("description")
@@ -151,7 +147,7 @@ def normalize_to_silver(df, job_city):
           .withColumn("src_system", F.coalesce(F.col("src_system"), F.lit("openweather")))
     )
 
-    # dt y timezone en segundos (enteros)
+    # dt y timezone 
     dt_sec = F.col("dt").cast("long")
     tz_sec = F.coalesce(F.col("timezone").cast("int"), F.lit(0))
 
@@ -211,9 +207,8 @@ def normalize_to_silver(df, job_city):
 
     return silver.select([c for c in KEEP if c in silver.columns])
 
-# ------------------------------ Escritura (sin HIVE default) -----------------
+# ------------------------------ Escritura  -----------------
 def write_silver(df_lite, silver_root):
-    # 1) Bloquear particiones nulas para evitar __HIVE_DEFAULT_PARTITION__
     required = ["event_ts"] + PARTITION_COLS
     before = df_lite.count()
     df_clean = df_lite.na.drop(subset=required)

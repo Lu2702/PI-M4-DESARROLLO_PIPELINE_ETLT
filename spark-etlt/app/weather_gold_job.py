@@ -54,7 +54,7 @@ COVERAGE_MIN_DAYS = 7
 DAYLIGHT_MIN = 8.0
 DAYLIGHT_MAX = 16.0
 
-# ------------------------- Spark Session (minimalista) ------------------------ #
+# ------------------------- Spark Session ------------------------ #
 def build_spark(app_name="weather-gold-job", shuffle_parts=16):
     """
     Construye Spark para correr local en el contenedor.
@@ -97,7 +97,7 @@ def quality_from_pct(pct_col):
 def main(args):
     spark = build_spark(shuffle_parts=args.shuffle_partitions)
 
-    # ---------- 1) Load SILVER con filtros opcionales ---------- #
+    # ---------- 1) Load SILVER ---------- #
     silver = spark.read.parquet(SILVER)
     if args.years_keep or args.months_keep or args.cities:
         cond = F.lit(True)
@@ -139,7 +139,7 @@ def main(args):
               .select("weather_key","weather_main","weather_desc")
     )
 
-    # Materializar DIMs para estabilidad de overwrite
+    # Materializar DIMs 
     dim_date = dim_date.cache(); _ = dim_date.count()
     dim_city = dim_city.cache(); _ = dim_city.count()
     dim_weather_condition = dim_weather_condition.cache(); _ = dim_weather_condition.count()
@@ -418,7 +418,7 @@ def main(args):
         write_parquet(q2, f"{GOLDEN}/answers/q2_wind_patterns",
                       parts=["city_name","year","month"], max_records_per_file=args.max_records_per_file)
 
-    # ---- Q3 (ÚNICA VISTA) ----
+    # ---- Q3 ----
     if "q3" in answers_wanted:
         D_ok = D.filter("coverage_quality!='low'")
         H_ok = H.join(D_ok.select("city_name","date_key").dropDuplicates(),

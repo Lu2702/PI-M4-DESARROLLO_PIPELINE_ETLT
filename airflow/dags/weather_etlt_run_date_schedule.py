@@ -48,7 +48,7 @@ with DAG(
     tags=["etlt", "openweather", "spark", "s3", "silver", "gold"],
     is_paused_upon_creation=False,
     max_active_runs=1,                      #  evita solapes
-    # timezone=airflow_tz.utc,              # <-- quitar esta línea
+    
 ):
 
     # ------- PRECHECK: contenedor arriba + preparar /tmp ----------
@@ -71,7 +71,7 @@ with DAG(
         cmd_timeout=120,
     )
 
-    # -------- SILVER: una tarea por ciudad (usa ds o dag_run.conf["date"]) --------
+    # -------- SILVER: una tarea por ciudad  --------
     silver_tasks = []
     for city in DEFAULT_CITIES:
         cmd = (
