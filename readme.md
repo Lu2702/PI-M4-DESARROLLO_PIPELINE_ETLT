@@ -621,7 +621,7 @@ Asegúrate de que esté unpaused en la UI (toggle azul).
 En esta fase se incorpora ingesta en tiempo (casi) real del clima desde OpenWeather hacia Apache Kafka y su consumo con Spark Structured Streaming en modo one-shot (micro-lote controlado).
 El productor publica eventos JSON en el tópico openweather-topic. El consumidor Spark lee del tópico, parsea y valida los mensajes, y escribe Parquet particionado por date y city en Amazon S3, manteniendo estado/checkpoints también en S3 para garantizar exactly-once semantics a nivel de partición de salida.
 
-La solución corre completamente en AWS sobre EC2 con Docker. El acceso a S3 se realiza vía IAM Role (sin credenciales estáticas). Esta etapa cierra el ciclo Bronze (streaming) → Silver/Gold (batch/orquestado), habilitando pipelines híbridos (batch + streaming).
+La solución corre completamente en AWS sobre EC2 con Docker. El acceso a S3 se realiza vía IAM Role (sin credenciales estáticas). 
 
 ##  🎯 2. Objetivos
 
@@ -776,5 +776,5 @@ pip install kafka-python requests
 ### 📦 Requisitos
 
 - Cuenta de Google para usar Colab.
-- Acceso a tu bucket S3 con la capa Gold (por ejemplo: etlt-datalake-dev-us-east-1-gold).
+- Acceso al bucket S3 con la capa Gold (por ejemplo: etlt-datalake-dev-us-east-1-gold).
 - Credenciales AWS con permiso de solo lectura en las rutas Gold (idealmente un usuario o rol con política mínima para s3:GetObject y s3:ListBucket). Pegar temporalmente las credenciales como secrets en Colab.
